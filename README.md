@@ -149,16 +149,16 @@ git clone https://github.com/seu-usuario/projeto-nexo.git
 cd projeto-nexo
 
 # Instale as dependencias do backend
-comando_de_instalacao_backend_aqui
+
 
 # Instale as dependencias do frontend
-comando_de_instalacao_frontend_aqui
+
 
 # Inicie o servidor do backend
-comando_para_iniciar_backend_aqui
+
 
 # Inicie o servidor do frontend
-comando_para_iniciar_frontend_aqui
+
 ```
 
 <p align="right"><a href="#topo">voltar ao topo</a></p>
