@@ -7,6 +7,32 @@
 <br>
 
 <div align="center">
+  <a href="https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/Language-Python%20%7C%20Vue.js-3776AB?style=flat-square&logo=python&logoColor=white" alt="Language">
+  </a>
+  <a href="https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/OS-Windows%20%7C%20Linux%20%7C%20macOS-0078D6?style=flat-square&logo=windows&logoColor=white" alt="OS">
+  </a>
+  <a href="https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/License-MIT-00599C?style=flat-square&logo=opensourceinitiative&logoColor=white" alt="License">
+  </a>
+  <a href="https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square&logo=github&logoColor=white" alt="PRs Welcome">
+  </a>
+  <a href="https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/Status-Em%20Desenvolvimento-FFB000?style=flat-square&logo=git&logoColor=white" alt="Status">
+  </a>
+  <a href="https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/Build-Passing-success?style=flat-square&logo=githubactions&logoColor=white" alt="Build">
+  </a>
+  <a href="https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/Docs-Swagger%20UI-85EA2D?style=flat-square&logo=swagger&logoColor=black" alt="Docs">
+  </a>
+</div>
+
+<br>
+
+<div align="center">
   <img src="https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vue.js&logoColor=4FC08D" alt="Vue.js">
   <img src="https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E" alt="Vite">
   <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
