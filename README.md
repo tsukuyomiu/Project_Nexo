@@ -129,7 +129,7 @@ A equipe responsável pelo desenvolvimento e documentação do Projeto Nexo é c
 | Nome | Matrícula | Função |
 |---|---|---|
 | Luann Thayller | 0023194 | Gerente de Projeto, Desenvolvedor Front-End e UI/UX Designer |
-| Gabriel Nonato | 0020241 | Desenvolvedor Back-End e Data Engineer |
+| Gabriel Nonato | 0020241 | Desenvolvedor FullStack |
 | Weney Anjos da Silva | 0023218 | Desenvolvedor Back-End e Data Engineer |
 | Luísa Damaceno | 0016112 | Analista de Requisitos |
 | Gabryel Henrique | 0022470 | Assistente Administrativo |
