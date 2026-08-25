@@ -84,7 +84,6 @@ O Projeto Nexo é um sistema voltado para a área de Perícia Computacional. O f
 > [!IMPORTANT]
 > A modelagem inicial do banco prevê quatro tabelas centrais: Usuários, Logs, Projetos_Periciais e Relatórios.
 
-<p align="right"><a href="#topo">voltar ao topo</a></p>
 
 ---
 
@@ -106,7 +105,6 @@ O sistema consistirá em pelo menos quatro telas obrigatórias:
 3. **Logs:** Terminal e Grid de Logs em tempo real.
 4. **Relatório:** Tela de Relatório Final.
 
-<p align="right"><a href="#topo">voltar ao topo</a></p>
 
 ---
 
@@ -118,7 +116,6 @@ A escolha da stack tecnológica foi baseada na necessidade de desempenho, segura
 * **Backend:** Python com FastAPI. O FastAPI oferece alta performance e documentação nativa via Swagger, ideal para agilizar o desenvolvimento e o teste das rotas da API.
 * **Banco de Dados:** SQL. A flexibilidade permite o uso de SQLite para ambientes de desenvolvimento e PostgreSQL para produção.
 
-<p align="right"><a href="#topo">voltar ao topo</a></p>
 
 ---
 
