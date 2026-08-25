@@ -1,6 +1,10 @@
 <div id="topo"></div>
 
-<h1 align="center">Projeto Nexo</h1>
+<div align="center">
+  <img src="docs/images/nexo_banner.jpg" alt="Projeto Nexo Banner">
+</div>
+
+<br>
 
 <div align="center">
   <img src="https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vue.js&logoColor=4FC08D" alt="Vue.js">
@@ -9,6 +13,27 @@
   <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite">
   <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
+</div>
+
+<div align="center">
+  <br>
+  <b>Apoie nosso projeto compartilhando:</b><br>
+  <br>
+  <a href="https://twitter.com/intent/tweet?text=Confira%20o%20Projeto%20Nexo&url=https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/Compartilhar-000000?style=flat-square&logo=x&logoColor=white" alt="Compartilhar no X">
+  </a>
+  <a href="https://www.linkedin.com/sharing/share-offsite/?url=https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/Compartilhar-0077B5?style=flat-square&logo=linkedin&logoColor=white" alt="Compartilhar no LinkedIn">
+  </a>
+  <a href="https://www.facebook.com/sharer/sharer.php?u=https://github.com/seu-usuario/projeto-nexo">
+    <img src="https://img.shields.io/badge/Compartilhar-1877F2?style=flat-square&logo=facebook&logoColor=white" alt="Compartilhar no Facebook">
+  </a>
+  <a href="https://reddit.com/submit?url=https://github.com/seu-usuario/projeto-nexo&title=Projeto%20Nexo">
+    <img src="https://img.shields.io/badge/Compartilhar-FF4500?style=flat-square&logo=reddit&logoColor=white" alt="Compartilhar no Reddit">
+  </a>
+  <a href="https://t.me/share/url?url=https://github.com/seu-usuario/projeto-nexo&text=Confira%20o%20Projeto%20Nexo">
+    <img src="https://img.shields.io/badge/Compartilhar-26A5E4?style=flat-square&logo=telegram&logoColor=white" alt="Compartilhar no Telegram">
+  </a>
 </div>
 
 <br>
@@ -75,10 +100,14 @@ A escolha da stack tecnológica foi baseada na necessidade de desempenho, segura
 
 A equipe responsável pelo desenvolvimento e documentação do Projeto Nexo é composta por:
 
-* **Erica:** Responsável pela documentação textual de Requisitos Funcionais, Requisitos Não Funcionais, Regras de Negócio, Interface de Usuário e Experiência do Usuário.
-* **Gabriel:** Desenvolvedor responsável pelo Vue.js, FastAPI e codificação central do projeto.
-* **Luiza:** Desenvolvedora responsável pelo Vue.js, FastAPI e codificação central do projeto.
-* **Gabryel:** Colaborador e apoio técnico no desenvolvimento do projeto.
+| Nome | Matrícula | Função |
+|---|---|---|
+| Luann Thayller | 0023194 | Gerente de Projeto, Desenvolvedor Front-End e UI/UX Designer |
+| Gabriel Nonato | 0020241 | Desenvolvedor Back-End e Data Engineer |
+| Weney Anjos da Silva | 0023218 | Desenvolvedor Back-End e Data Engineer |
+| Luísa Damaceno | 0016112 | Analista de Requisitos |
+| Gabryel Henrique | 0022470 | Assistente Administrativo |
+| Érica Beatriz de A. | 0022515 | Analista de Requisitos e UI/UX Designer |
 
 <p align="right"><a href="#topo">voltar ao topo</a></p>
 
@@ -108,3 +137,6 @@ comando_para_iniciar_backend_aqui
 
 # Inicie o servidor do frontend
 comando_para_iniciar_frontend_aqui
+```
+
+<p align="right"><a href="#topo">voltar ao topo</a></p>
