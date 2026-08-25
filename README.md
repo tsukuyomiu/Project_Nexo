@@ -132,7 +132,6 @@ A equipe responsável pelo desenvolvimento e documentação do Projeto Nexo é c
 | Gabryel Henrique | 0022470 | Assistente Administrativo |
 | Érica Beatriz de A. | 0022515 | Analista de Requisitos e UI/UX Designer |
 
-<p align="right"><a href="#topo">voltar ao topo</a></p>
 
 ---
 
