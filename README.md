@@ -84,7 +84,6 @@ O Projeto Nexo é um sistema voltado para a área de Perícia Computacional. O f
 > [!IMPORTANT]
 > A modelagem inicial do banco prevê quatro tabelas centrais: Usuários, Logs, Projetos_Periciais e Relatórios.
 
-<p align="right"><a href="#topo">voltar ao topo</a></p>
 
 ---
 
@@ -106,7 +105,6 @@ O sistema consistirá em pelo menos quatro telas obrigatórias:
 3. **Logs:** Terminal e Grid de Logs em tempo real.
 4. **Relatório:** Tela de Relatório Final.
 
-<p align="right"><a href="#topo">voltar ao topo</a></p>
 
 ---
 
@@ -118,7 +116,6 @@ A escolha da stack tecnológica foi baseada na necessidade de desempenho, segura
 * **Backend:** Python com FastAPI. O FastAPI oferece alta performance e documentação nativa via Swagger, ideal para agilizar o desenvolvimento e o teste das rotas da API.
 * **Banco de Dados:** SQL. A flexibilidade permite o uso de SQLite para ambientes de desenvolvimento e PostgreSQL para produção.
 
-<p align="right"><a href="#topo">voltar ao topo</a></p>
 
 ---
 
@@ -129,13 +126,12 @@ A equipe responsável pelo desenvolvimento e documentação do Projeto Nexo é c
 | Nome | Matrícula | Função |
 |---|---|---|
 | Luann Thayller | 0023194 | Gerente de Projeto, Desenvolvedor Front-End e UI/UX Designer |
-| Gabriel Nonato | 0020241 | Desenvolvedor Back-End e Data Engineer |
+| Gabriel Nonato | 0020241 | Desenvolvedor FullStack |
 | Weney Anjos da Silva | 0023218 | Desenvolvedor Back-End e Data Engineer |
 | Luísa Damaceno | 0016112 | Analista de Requisitos |
 | Gabryel Henrique | 0022470 | Assistente Administrativo |
 | Érica Beatriz de A. | 0022515 | Analista de Requisitos e UI/UX Designer |
 
-<p align="right"><a href="#topo">voltar ao topo</a></p>
 
 ---
 
@@ -153,16 +149,16 @@ git clone https://github.com/seu-usuario/projeto-nexo.git
 cd projeto-nexo
 
 # Instale as dependencias do backend
-comando_de_instalacao_backend_aqui
+
 
 # Instale as dependencias do frontend
-comando_de_instalacao_frontend_aqui
+
 
 # Inicie o servidor do backend
-comando_para_iniciar_backend_aqui
+
 
 # Inicie o servidor do frontend
-comando_para_iniciar_frontend_aqui
+
 ```
 
 <p align="right"><a href="#topo">voltar ao topo</a></p>
