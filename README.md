@@ -8,7 +8,7 @@
 
 <div align="center">
   <a href="https://github.com/seu-usuario/projeto-nexo">
-    <img src="https://img.shields.io/badge/Language-Python%20%7C%20Vue.js-3776AB?style=flat-square&logo=python&logoColor=white" alt="Language">
+    <img src="https://img.shields.io/badge/Language-Python%20%7C%20TypeScript-3776AB?style=flat-square&logo=typescript&logoColor=white" alt="Language">
   </a>
   <a href="https://github.com/seu-usuario/projeto-nexo">
     <img src="https://img.shields.io/badge/OS-Windows%20%7C%20Linux%20%7C%20macOS-0078D6?style=flat-square&logo=windows&logoColor=white" alt="OS">
@@ -33,7 +33,7 @@
 <br>
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vue.js&logoColor=4FC08D" alt="Vue.js">
+  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React">
   <img src="https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E" alt="Vite">
   <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi" alt="FastAPI">
@@ -112,7 +112,7 @@ O sistema consistirá em pelo menos quatro telas obrigatórias:
 
 A escolha da stack tecnológica foi baseada na necessidade de desempenho, segurança e facilidade de manutenção para o ecossistema pericial:
 
-* **Frontend:** Vue.js 3 com Vite. Garantem uma interface reativa, construção rápida e excelente experiência de usuário para as visualizações de dados.
+* **Frontend:** React 19 com TypeScript, Vite, Tailwind CSS e TanStack Router. Garantem uma interface reativa, construção rápida e excelente experiência de usuário para as visualizações de dados.
 * **Backend:** Python com FastAPI. O FastAPI oferece alta performance e documentação nativa via Swagger, ideal para agilizar o desenvolvimento e o teste das rotas da API.
 * **Banco de Dados:** SQL. A flexibilidade permite o uso de SQLite para ambientes de desenvolvimento e PostgreSQL para produção.
 
