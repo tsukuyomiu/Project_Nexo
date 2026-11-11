@@ -148,17 +148,22 @@ git clone https://github.com/seu-usuario/projeto-nexo.git
 # Navegue ate a pasta do projeto
 cd projeto-nexo
 
-# Instale as dependencias do backend
+# Instale as dependencias do backend e inicialize o banco SQL + Seeds
+cd backend
+pip install -r requirements.txt
+python -m app.db.scripts.init_db
 
+# Inicie o servidor do backend (FastAPI + Swagger em http://localhost:8000/docs)
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Instale as dependencias do frontend
+# Em outro terminal, instale as dependencias e inicie o servidor do frontend
+cd frontend
+npm install
+npm run dev
 
-
-# Inicie o servidor do backend
-
-
-# Inicie o servidor do frontend
-
+# Para inspecionar todos os logs de auditoria (Quem fez, Hora e O que fez) no terminal:
+cd backend
+python -m app.db.scripts.inspect_logs
 ```
 
 <p align="right"><a href="#topo">voltar ao topo</a></p>

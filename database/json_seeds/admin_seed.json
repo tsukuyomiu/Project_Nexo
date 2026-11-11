@@ -1,0 +1,53 @@
+{
+  "metadata": {
+    "project": "Projeto Nexo",
+    "version": "1.0.0",
+    "description": "Seeds iniciais de Administrador/Auditor e Usuário de Demonstração do Projeto Nexo."
+  },
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Administrador Nexo",
+      "email": "admin@nexo.com",
+      "password_plain_for_seed": "Admin@Nexo2026",
+      "role": "admin",
+      "terms_accepted": true,
+      "profile": {
+        "phone": "+55 (11) 99999-0001",
+        "birthDate": "1995-05-15",
+        "address": "Av. Paulista, 1000 - São Paulo, SP",
+        "currency": "BRL",
+        "twoFactorEnabled": false
+      },
+      "sample_transactions": [
+        {
+          "id": "10000000-0000-4000-8000-000000000001",
+          "description": "Consultoria de Arquitetura e Dados",
+          "amount": 8500.00,
+          "date": "2026-11-05",
+          "category": "Serviços",
+          "type": "income",
+          "status": "confirmado"
+        },
+        {
+          "id": "10000000-0000-4000-8000-000000000002",
+          "description": "Infraestrutura Cloud e Servidores",
+          "amount": 640.50,
+          "date": "2026-11-07",
+          "category": "Serviços",
+          "type": "expense",
+          "status": "confirmado"
+        },
+        {
+          "id": "10000000-0000-4000-8000-000000000003",
+          "description": "Compras Supermercado Mensal",
+          "amount": 920.00,
+          "date": "2026-11-09",
+          "category": "Supermercado",
+          "type": "expense",
+          "status": "confirmado"
+        }
+      ]
+    }
+  ]
+}

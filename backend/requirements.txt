@@ -1,0 +1,15 @@
+# ============================================================================
+# PROJETO NEXO - DEPENDÊNCIAS DO BACK-END (Python 3.11+)
+# ============================================================================
+fastapi>=0.103.0
+uvicorn[standard]>=0.23.0
+SQLAlchemy>=2.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+email-validator>=2.1.0
+PyJWT>=2.8.0
+cryptography>=41.0.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.9
+httpx>=0.25.0
+rich>=13.7.0
