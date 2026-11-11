@@ -1,16 +1,31 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Facebook,
   Instagram,
+  KeyRound,
   Linkedin,
+  Lock,
+  Mail,
   MessageCircle,
   Music2,
+  ShieldCheck,
   Twitter,
+  User,
   Youtube,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import logoAsset from "@/assets/Logo.png.asset.json";
+import { useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { FieldLabel } from "@/components/FieldLabel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useTransactions } from "@/hooks/useTransactions";
+import { apiOAuthLogin } from "@/lib/api";
+import { evaluatePasswordStrength } from "@/lib/signup-validation";
 
 /* Logo "N" da Nexo */
 export function NexoLogo({ className = "h-5 w-5" }: { className?: string }) {
@@ -26,7 +41,7 @@ export function NexoLogo({ className = "h-5 w-5" }: { className?: string }) {
 const navItems = [
   { to: "/", label: "Início" },
   { to: "/", label: "Entrar" },
-  { to: "/", label: "Sobre nós" },
+  { to: "/sobre", label: "Sobre nós" },
 ] as const;
 
 const socials = [
@@ -39,7 +54,6 @@ const socials = [
   { icon: Facebook, label: "Facebook" },
 ];
 
-/* useLogoImage/hideFooter: valem para todas as telas; ligue/desligue por página se precisar */
 export function NexoLayout({
   children,
   useLogoImage = true,
@@ -108,9 +122,9 @@ export function NexoLayout({
           <div className="text-muted-foreground sm:text-right">
             <p>Atendimento : 145 (custo de ligação local)</p>
             <div className="flex flex-wrap gap-4 text-link">
-              <a href="#" className="hover:underline">
-                Fale conosco
-              </a>
+              <Link to="/sobre" className="hover:underline">
+                Sobre nós
+              </Link>
               <a href="#" className="hover:underline">
                 Política de privacidade
               </a>
@@ -215,7 +229,171 @@ const AppleIcon = () => (
   </svg>
 );
 
+export function PasswordStrengthMeter({ password }: { password: string }) {
+  const info = evaluatePasswordStrength(password);
+  if (info.level === "empty") return null;
+
+  const barColors = {
+    weak: "bg-destructive",
+    medium: "bg-amber-500",
+    strong: "bg-green-500",
+  } as const;
+
+  const textColors = {
+    weak: "text-destructive",
+    medium: "text-amber-500",
+    strong: "text-green-500",
+  } as const;
+
+  const activeColor = barColors[info.level];
+
+  return (
+    <div className="mt-1 flex flex-col gap-1.5" aria-live="polite">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="text-muted-foreground">Força da senha:</span>
+        <span className={`font-bold ${textColors[info.level]}`}>Senha {info.label}</span>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        <span className={`h-1.5 rounded-full transition-colors ${info.score >= 1 ? activeColor : "bg-muted"}`} />
+        <span className={`h-1.5 rounded-full transition-colors ${info.score >= 2 ? activeColor : "bg-muted"}`} />
+        <span className={`h-1.5 rounded-full transition-colors ${info.score >= 3 ? activeColor : "bg-muted"}`} />
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+        <span className={info.hasMinLength ? "font-semibold text-green-500" : ""}>
+          {info.hasMinLength ? "✓" : "•"} 6+ caracteres
+        </span>
+        <span className={info.hasUpperAndLower ? "font-semibold text-green-500" : ""}>
+          {info.hasUpperAndLower ? "✓" : "•"} Maiúscula/minúscula
+        </span>
+        <span className={info.hasNumber ? "font-semibold text-green-500" : ""}>
+          {info.hasNumber ? "✓" : "•"} Número
+        </span>
+        <span className={info.hasSpecial ? "font-semibold text-green-500" : ""}>
+          {info.hasSpecial ? "✓" : "•"} Símbolo (@#$%)
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
+  const navigate = useNavigate();
+  const { authenticateSession } = useTransactions();
+  const [providerModal, setProviderModal] = useState<"google" | "apple" | null>(null);
+  const [name, setName] = useState("Gabriel Nonato");
+  const [email, setEmail] = useState("ggnonato@gmail.com");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const defaultAccounts = [
+    { name: "Gabriel Nonato", email: "ggnonato@gmail.com" },
+    { name: "sasq", email: "sasqnegro@gmail.com" },
+    { name: "Thaylle", email: "tylex.dev@gmail.com" },
+  ];
+
+  const [savedAccounts, setSavedAccounts] = useState<Array<{ name: string; email: string }>>(() => {
+    if (typeof window === "undefined") return defaultAccounts;
+    try {
+      const raw = window.localStorage.getItem("nexo:oauth-accounts");
+      if (!raw) return defaultAccounts;
+      const parsed = JSON.parse(raw) as Array<{ name: string; email: string }>;
+      const merged = [...defaultAccounts];
+      for (const item of parsed) {
+        if (item.email && !merged.some((m) => m.email.toLowerCase() === item.email.toLowerCase())) {
+          merged.push(item);
+        }
+      }
+      return merged;
+    } catch {
+      return defaultAccounts;
+    }
+  });
+
+  function rememberAccount(accName: string, accEmail: string) {
+    const cleanEmail = accEmail.trim().toLowerCase();
+    const cleanName = accName.trim();
+    const next = [
+      { name: cleanName, email: cleanEmail },
+      ...savedAccounts.filter((a) => a.email.toLowerCase() !== cleanEmail),
+    ];
+    setSavedAccounts(next);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem("nexo:oauth-accounts", JSON.stringify(next));
+      } catch {
+        // Ignora erro de quota
+      }
+    }
+  }
+
+  function openModal(provider: "google" | "apple") {
+    setProviderModal(provider);
+    setName("Gabriel Nonato");
+    setEmail(provider === "google" ? "ggnonato@gmail.com" : "gabriel.nonato@icloud.com");
+    setPassword("");
+  }
+
+  async function quickLoginAccount(accName: string, accEmail: string) {
+    if (!providerModal || loading) return;
+    setLoading(true);
+    try {
+      const res = await apiOAuthLogin({
+        provider: providerModal,
+        email: accEmail.trim(),
+        name: accName.trim(),
+      });
+      if (res.access_token && res.user) {
+        rememberAccount(res.user.name, res.user.email);
+        await authenticateSession(res.access_token, res.user);
+        toast.success(`Bem-vindo(a), ${res.user.name}!`);
+        setProviderModal(null);
+        navigate({ to: "/dashboard" });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível autenticar via Google.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleOAuthSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!providerModal || loading) return;
+    if (!name.trim()) {
+      toast.error("Informe o nome da conta.");
+      return;
+    }
+    if (!isEmail(email)) {
+      toast.error("Informe um e-mail válido.");
+      return;
+    }
+    if (password && password.length < 6) {
+      toast.error("A senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiOAuthLogin({
+        provider: providerModal,
+        email: email.trim(),
+        name: name.trim(),
+        password: password.trim() || undefined,
+      });
+      if (res.access_token && res.user) {
+        rememberAccount(res.user.name, res.user.email);
+        await authenticateSession(res.access_token, res.user);
+        toast.success(`Bem-vindo(a), ${res.user.name}!`);
+        setProviderModal(null);
+        navigate({ to: "/dashboard" });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível autenticar via OAuth.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <>
       <div className="my-4 flex items-center gap-2 text-sm">
@@ -225,19 +403,148 @@ export function SocialButtons({ appleIcon = true }: { appleIcon?: boolean }) {
       <div className="flex justify-center gap-3">
         <button
           type="button"
+          onClick={() => openModal("google")}
           aria-label="Continuar com Google"
-          className="h-6 w-14 rounded bg-primary text-sm font-bold text-primary-foreground shadow-btn hover:bg-secondary"
+          title="Entrar com conta Google (Gmail)"
+          className="h-7 w-16 rounded bg-primary text-sm font-bold text-primary-foreground shadow-btn transition hover:bg-secondary"
         >
           G
         </button>
         <button
           type="button"
+          onClick={() => openModal("apple")}
           aria-label="Continuar com Apple"
-          className="h-6 w-14 rounded bg-primary text-sm text-primary-foreground shadow-btn hover:bg-secondary inline-flex items-center justify-center"
+          title="Entrar com ID Apple"
+          className="inline-flex h-7 w-16 items-center justify-center rounded bg-primary text-sm text-primary-foreground shadow-btn transition hover:bg-secondary"
         >
           {appleIcon && <AppleIcon />}
         </button>
       </div>
+
+      <Dialog open={!!providerModal} onOpenChange={(v) => !v && setProviderModal(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {providerModal === "google" ? (
+                <span className="grid h-6 w-6 place-items-center rounded-full bg-secondary text-xs font-bold text-secondary-foreground">
+                  G
+                </span>
+              ) : (
+                <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground">
+                  <AppleIcon />
+                </span>
+              )}
+              Escolha uma conta {providerModal === "google" ? "Google" : "Apple"}
+            </DialogTitle>
+            <DialogDescription>
+              Clique na sua conta conectada para entrar imediatamente ou cadastre uma nova conta
+              abaixo.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Contas salvas para login em 1 clique */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold text-muted-foreground">
+              Contas conectadas neste dispositivo:
+            </span>
+            {savedAccounts.map((acc) => (
+              <button
+                key={acc.email}
+                type="button"
+                disabled={loading}
+                onClick={() => void quickLoginAccount(acc.name, acc.email)}
+                className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-3.5 py-2.5 text-left transition hover:border-secondary hover:bg-secondary/10"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                    {acc.name[0]?.toUpperCase()}
+                  </span>
+                  <div className="leading-tight">
+                    <p className="text-xs font-bold text-foreground">{acc.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{acc.email}</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-secondary px-2.5 py-1 text-[10px] font-bold text-secondary-foreground">
+                  Entrar
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="my-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="h-px flex-1 bg-border" /> ou usar / cadastrar outra conta{" "}
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <form onSubmit={handleOAuthSubmit} className="flex flex-col gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-foreground">
+                Nome completo
+              </label>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Seu nome completo"
+                  className="h-9 flex-1 bg-transparent text-sm outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-foreground">
+                E-mail ({providerModal === "google" ? "Gmail" : "iCloud / Apple ID"})
+              </label>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="seuemail@gmail.com"
+                  className="h-9 flex-1 bg-transparent text-sm outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-foreground">
+                Senha (opcional para contas existentes)
+              </label>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3">
+                <Lock className="h-4 w-4 text-muted-foreground" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Defina uma senha se for conta nova"
+                  className="h-9 flex-1 bg-transparent text-sm outline-none"
+                />
+              </div>
+              <PasswordStrengthMeter password={password} />
+            </div>
+
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setProviderModal(null)}
+                className="h-9 rounded-lg border border-border px-4 text-xs font-bold text-foreground hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex h-9 items-center gap-1.5 rounded-lg bg-secondary px-5 text-xs font-bold text-secondary-foreground shadow-btn hover:brightness-110 disabled:opacity-50"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                {loading ? "Autenticando..." : "Confirmar e Entrar"}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

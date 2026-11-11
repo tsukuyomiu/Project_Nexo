@@ -1,8 +1,7 @@
 // PONTO ÚNICO DE INTEGRAÇÃO da alteração de senha do usuário logado.
-// Hoje o projeto NÃO possui serviço de autenticação capaz de efetivar a
-// troca (o login é apenas de interface). Quando o Back-End estiver
-// disponível, implemente aqui a chamada real e retorne o resultado do
-// serviço. Nunca armazene senhas em estado global, localStorage ou logs.
+// Conectado diretamente ao Back-End FastAPI (/api/v1/auth/change-password).
+
+import { API_BASE_URL, getAuthToken } from "@/lib/api";
 
 export interface ChangePasswordResult {
   ok: boolean;
@@ -10,12 +9,40 @@ export interface ChangePasswordResult {
 }
 
 export async function changePassword(
-  _current: string,
-  _next: string,
+  current: string,
+  next: string,
 ): Promise<ChangePasswordResult> {
-  return {
-    ok: false,
-    message:
-      "A alteração efetiva de senha depende da integração com o serviço de autenticação e ainda não está disponível.",
-  };
+  const token = getAuthToken();
+  if (!token) {
+    return {
+      ok: false,
+      message: "Faça login novamente para alterar sua senha.",
+    };
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/change-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ current, next, confirm: next }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        ok: false,
+        message: data?.detail || data?.message || "Não foi possível alterar a senha.",
+      };
+    }
+    return {
+      ok: true,
+      message: data?.message || "Senha alterada com sucesso!",
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Não foi possível conectar ao servidor Back-End na porta 8000.",
+    };
+  }
 }

@@ -1,17 +1,17 @@
 """
 Central de Retorno e Monitoramento de Logs & Auditoria 360° (`/api/v1/logs`):
-Retorna exatamente TUDO o que acontece no site (em Python e em SQL):
-  - QUEM fez (`quem_fez_nome`, `quem_fez_email`, `quem_fez_id`, `ip_origem`, `user_agent`)
-  - QUANDO fez (`quando_fez_brasilia`, `quando_fez_utc`)
-  - O QUE fez (`o_que_fez`, `acao`, `categoria_evento`, `entidade_afetada`, `dados_anteriores`, `dados_novos`)
+Acesso restrito a Administradores (`role == 'admin'`), mas retorna as atividades
+de TODOS os usuários do site (Administradores, Usuários Comuns e Visitantes).
 
-Rotas disponíveis:
+Inclui:
   - GET  `/audit`: Consulta completa e filtrável da tabela `audit_logs`
   - GET  `/timeline`: Linha do tempo humana ("Quem fez, a que horas fez e o que fez")
   - GET  `/access`: Histórico de todas as requisições HTTP (`access_logs`)
   - GET  `/stats`: Painel consolidado de métricas de auditoria, usuários mais ativos e alertas
-  - GET  `/export`: Download imediato de todos os logs em CSV (Excel) ou JSON
-  - POST `/frontend-event`: Recebe eventos de interface do Front-End React (cliques, telas, erros)
+  - GET  `/export`: Download imediato de todos os logs em CSV (Excel formatado pt-BR) ou JSON
+  - POST `/send-email`: Gera a planilha Excel (.csv) dos logs e envia direto para o Gmail!
+  - GET/POST `/smtp-config`: Configuração rápida de Gmail SMTP e visualização da Caixa de Saída
+  - POST `/frontend-event`: Recebe eventos de interface do Front-End React
 """
 
 from __future__ import annotations
@@ -19,10 +19,12 @@ from __future__ import annotations
 import csv
 import io
 import json
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import PlainTextResponse, Response
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
@@ -32,8 +34,14 @@ from app.api.deps import (
     get_current_user_optional,
 )
 from app.core.audit_logger import record_audit_event
-from app.core.config import settings
+from app.core.email_service import (
+    get_smtp_config,
+    list_outbox_emails,
+    save_smtp_config,
+    send_audit_logs_excel_email,
+)
 from app.core.exceptions import NexoException
+from app.core.security import decode_access_token
 from app.db.models import AccessLog, AuditLog, User
 from app.db.session import get_db
 from app.schemas.audit import (
@@ -47,26 +55,65 @@ from app.schemas.audit import (
 router = APIRouter(prefix="/logs", tags=["Auditoria 360° & Logs do Sistema"])
 
 
-def _check_log_access(user: Optional[User]) -> None:
+class SendLogsEmailRequest(BaseModel):
+    to_email: EmailStr
+    incluir_triggers_sql: bool = False
+
+
+class SmtpConfigPayload(BaseModel):
+    gmail_user: EmailStr
+    gmail_app_password: str
+    default_to: Optional[EmailStr] = None
+
+
+def format_br_datetime(iso_str: str) -> str:
+    """Converte '2026-11-10T23:35:12.123-03:00' para '10/11/2026 23:35:12'."""
+    if not iso_str:
+        return ""
+    try:
+        clean = iso_str.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(clean)
+        return dt.strftime("%d/%m/%Y %H:%M:%S")
+    except Exception:
+        if "T" in iso_str and len(iso_str) >= 19:
+            date_part, time_part = iso_str[:10], iso_str[11:19]
+            parts = date_part.split("-")
+            if len(parts) == 3:
+                return f"{parts[2]}/{parts[1]}/{parts[0]} {time_part}"
+        return iso_str
+
+
+def _check_log_access(
+    user: Optional[User],
+    db: Optional[Session] = None,
+    token_query: Optional[str] = None,
+) -> User:
     """
-    Em desenvolvimento (`NEXO_LOGS_PUBLIC_IN_DEV=true`), permite consultar os logs
-    diretamente pelo navegador/Swagger para inspeção imediata.
-    Em produção, exige usuário autenticado com role 'admin' ou 'auditor'.
+    Exige estritamente que o usuário esteja autenticado e possua `role = 'admin'` (ou 'auditor').
     """
-    if settings.NEXO_ENV == "development" and settings.NEXO_LOGS_PUBLIC_IN_DEV:
-        return
-    if not user:
+    resolved_user = user
+    if not resolved_user and token_query and db is not None:
+        payload = decode_access_token(token_query)
+        if payload and payload.get("sub"):
+            resolved_user = (
+                db.query(User)
+                .filter(User.id == payload["sub"], User.ativo == 1)
+                .first()
+            )
+
+    if not resolved_user:
         raise NexoException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Autenticação necessária para consultar os logs de auditoria.",
+            detail="Autenticação de Administrador necessária para acessar os logs.",
             error_code="UNAUTHORIZED",
         )
-    if user.role not in ("admin", "auditor"):
+    if resolved_user.role not in ("admin", "auditor"):
         raise NexoException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso restrito a Administradores e Auditores.",
+            detail="Acesso restrito exclusivamente a Administradores do Nexo.",
             error_code="FORBIDDEN_AUDIT_ACCESS",
         )
+    return resolved_user
 
 
 def _parse_json_safe(raw: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -82,7 +129,7 @@ def _parse_json_safe(raw: Optional[str]) -> Optional[Dict[str, Any]]:
 def _row_to_audit_item(row: AuditLog) -> AuditLogItem:
     return AuditLogItem(
         id=row.id,
-        quando_fez_brasilia=row.data_hora_local,
+        quando_fez_brasilia=format_br_datetime(row.data_hora_local),
         quando_fez_utc=row.data_hora_utc,
         quem_fez_id=row.usuario_id,
         quem_fez_nome=row.usuario_nome,
@@ -107,31 +154,68 @@ def _row_to_audit_item(row: AuditLog) -> AuditLogItem:
     )
 
 
+def _build_csv_bytes(rows: list[AuditLog]) -> bytes:
+    output = io.StringIO()
+    output.write("\ufeff")  # UTF-8 BOM para Excel pt-BR
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(
+        [
+            "Data e Hora (Brasília)",
+            "Quem Fez (Nome)",
+            "Quem Fez (E-mail)",
+            "O Que Fez (Descrição Completa)",
+            "Módulo",
+            "Código da Ação",
+            "Severidade",
+            "IP de Origem",
+            "Entidade Afetada",
+            "Estado Anterior (Antes)",
+            "Novo Estado (Depois)",
+            "Origem do Log",
+            "ID do Log",
+            "Hash SHA-256 de Integridade",
+        ]
+    )
+    for r in rows:
+        writer.writerow(
+            [
+                format_br_datetime(r.data_hora_local),
+                r.usuario_nome,
+                r.usuario_email,
+                r.resumo_humano,
+                r.categoria_evento,
+                r.acao,
+                r.severidade,
+                r.ip_origem,
+                r.entidade_afetada,
+                r.dados_anteriores or "-",
+                r.dados_novos or "-",
+                r.origem_registro,
+                r.id,
+                r.hash_integridade,
+            ]
+        )
+    return output.getvalue().encode("utf-8")
+
+
 @router.get("/audit", response_model=AuditLogListResponse)
 def list_audit_logs(
-    page: int = Query(default=1, ge=1, description="Página atual"),
-    page_size: int = Query(default=50, ge=1, le=500, description="Itens por página"),
-    usuario_id: Optional[str] = Query(default=None, description="Filtrar por ID do usuário"),
-    email: Optional[str] = Query(default=None, description="Filtrar por e-mail de quem fez"),
-    acao: Optional[str] = Query(default=None, description="Ex: TRANSACTION_CREATED, USER_LOGIN_SUCCESS"),
-    categoria: Optional[str] = Query(
-        default=None, description="AUTH | TRANSACTION | PROFILE | PREFERENCES | SECURITY | DATABASE"
-    ),
-    origem: Optional[str] = Query(
-        default=None, description="API_PYTHON | SQL_TRIGGER | FRONTEND_TELEMETRY | SYSTEM"
-    ),
-    severidade: Optional[str] = Query(default=None, description="INFO | WARNING | ERROR | CRITICAL"),
-    data_inicio: Optional[str] = Query(default=None, description="Data inicial YYYY-MM-DD"),
-    data_fim: Optional[str] = Query(default=None, description="Data final YYYY-MM-DD"),
-    q: Optional[str] = Query(default=None, description="Busca livre no resumo, nome, e-mail ou dados"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=500),
+    usuario_id: Optional[str] = Query(default=None),
+    email: Optional[str] = Query(default=None),
+    acao: Optional[str] = Query(default=None),
+    categoria: Optional[str] = Query(default=None),
+    origem: Optional[str] = Query(default=None),
+    severidade: Optional[str] = Query(default=None),
+    data_inicio: Optional[str] = Query(default=None),
+    data_fim: Optional[str] = Query(default=None),
+    q: Optional[str] = Query(default=None),
     user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> AuditLogListResponse:
-    """
-    Retorna a trilha completa de auditoria com filtros combináveis.
-    Mostra exatamente QUEM fez, a HORA que fez, O QUE fez e os dados ANTES/DEPOIS.
-    """
-    _check_log_access(user)
+    """Retorna a trilha completa de auditoria de todos os usuários (restrito a Admin)."""
+    _check_log_access(user, db=db)
 
     query = db.query(AuditLog)
     if usuario_id:
@@ -184,33 +268,40 @@ def list_audit_logs(
 def get_human_timeline(
     limit: int = Query(default=100, ge=1, le=500),
     incluir_triggers_sql: bool = Query(
-        default=True, description="Se True, inclui também os logs de gatilhos nativos SQL"
+        default=False, description="Se True, inclui também os logs internos de gatilhos SQL"
     ),
+    email: Optional[str] = Query(default=None, description="Filtrar por e-mail de usuário"),
     user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
-    Retorna uma linha do tempo direta e super legível respondendo:
-    'Quem fez, a que horas fez, de onde fez e o que fez'.
+    Retorna a linha do tempo de TODOS os usuários para o painel de Administrador.
+    Por padrão oculta os logs redundantes de `SQL_TRIGGER` para focar nas ações reais do site.
     """
-    _check_log_access(user)
+    _check_log_access(user, db=db)
 
     query = db.query(AuditLog)
     if not incluir_triggers_sql:
         query = query.filter(AuditLog.origem_registro != "SQL_TRIGGER")
+    if email:
+        query = query.filter(AuditLog.usuario_email.ilike(f"%{email.strip()}%"))
 
     rows = query.order_by(AuditLog.data_hora_utc.desc()).limit(limit).all()
 
     timeline = [
         {
             "log_id": r.id,
-            "quando_fez": r.data_hora_local,
-            "quem_fez": f"{r.usuario_nome} <{r.usuario_email}>",
+            "quando_fez": format_br_datetime(r.data_hora_local),
+            "quando_iso": r.data_hora_local,
+            "quem_fez": f"{r.usuario_nome} ({r.usuario_email})",
+            "quem_nome": r.usuario_nome,
+            "quem_email": r.usuario_email,
             "o_que_fez": r.resumo_humano,
             "acao": r.acao,
             "modulo": r.categoria_evento,
             "severidade": r.severidade,
             "ip": r.ip_origem,
+            "origem": r.origem_registro,
             "rota": f"{r.metodo_http or ''} {r.rota_http or ''}".strip() or r.origem_registro,
             "antes": _parse_json_safe(r.dados_anteriores),
             "depois": _parse_json_safe(r.dados_novos),
@@ -228,14 +319,14 @@ def get_human_timeline(
 def list_access_logs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=500),
-    metodo: Optional[str] = Query(default=None, description="GET, POST, PUT, DELETE"),
-    status_code: Optional[int] = Query(default=None, description="Ex: 200, 201, 401, 422, 500"),
-    rota: Optional[str] = Query(default=None, description="Filtro de rota"),
+    metodo: Optional[str] = Query(default=None),
+    status_code: Optional[int] = Query(default=None),
+    rota: Optional[str] = Query(default=None),
     user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> AccessLogListResponse:
     """Lista todas as requisições HTTP recebidas pela API com latência em ms."""
-    _check_log_access(user)
+    _check_log_access(user, db=db)
 
     query = db.query(AccessLog)
     if metodo:
@@ -261,7 +352,7 @@ def list_access_logs(
         items=[
             AccessLogItem(
                 id=r.id,
-                quando_brasilia=r.data_hora_local,
+                quando_brasilia=format_br_datetime(r.data_hora_local),
                 quando_utc=r.data_hora_utc,
                 request_id=r.request_id,
                 usuario_id=r.usuario_id,
@@ -286,9 +377,20 @@ def get_logs_statistics(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """Retorna métricas agregadas sobre tudo o que ocorreu no sistema."""
-    _check_log_access(user)
+    _check_log_access(user, db=db)
 
-    total_audit = db.query(func.count(AuditLog.id)).scalar() or 0
+    total_audit = (
+        db.query(func.count(AuditLog.id))
+        .filter(AuditLog.origem_registro != "SQL_TRIGGER")
+        .scalar()
+        or 0
+    )
+    total_sql_triggers = (
+        db.query(func.count(AuditLog.id))
+        .filter(AuditLog.origem_registro == "SQL_TRIGGER")
+        .scalar()
+        or 0
+    )
     total_access = db.query(func.count(AccessLog.id)).scalar() or 0
 
     by_category = (
@@ -301,13 +403,13 @@ def get_logs_statistics(
         .group_by(AuditLog.severidade)
         .all()
     )
-    by_origin = (
-        db.query(AuditLog.origem_registro, func.count(AuditLog.id))
-        .group_by(AuditLog.origem_registro)
-        .all()
-    )
     top_actors = (
-        db.query(AuditLog.usuario_email, AuditLog.usuario_nome, func.count(AuditLog.id).label("total"))
+        db.query(
+            AuditLog.usuario_email,
+            AuditLog.usuario_nome,
+            func.count(AuditLog.id).label("total"),
+        )
+        .filter(AuditLog.origem_registro != "SQL_TRIGGER")
         .group_by(AuditLog.usuario_email, AuditLog.usuario_nome)
         .order_by(text("total DESC"))
         .limit(10)
@@ -318,11 +420,11 @@ def get_logs_statistics(
     return {
         "ok": True,
         "total_audit_events": total_audit,
+        "total_sql_trigger_events": total_sql_triggers,
         "total_http_requests": total_access,
         "average_http_latency_ms": round(float(avg_latency), 2),
         "events_by_category": {cat: count for cat, count in by_category},
         "events_by_severity": {sev: count for sev, count in by_severity},
-        "events_by_origin": {orig: count for orig, count in by_origin},
         "most_active_users": [
             {"email": email, "name": name, "actions_count": count}
             for email, name, count in top_actors
@@ -333,14 +435,19 @@ def get_logs_statistics(
 @router.get("/export")
 def export_audit_logs(
     format: str = Query(default="csv", description="'csv' ou 'json'"),
-    limit: int = Query(default=1000, ge=1, le=10000),
+    incluir_triggers_sql: bool = Query(default=False),
+    limit: int = Query(default=2000, ge=1, le=10000),
+    token: Optional[str] = Query(default=None),
     user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> Response:
-    """Exporta os logs de auditoria em formato CSV (pronto para Excel) ou JSON."""
-    _check_log_access(user)
+    """Exporta os logs de auditoria em formato CSV (pronto para Excel pt-BR) ou JSON."""
+    _check_log_access(user, db=db, token_query=token)
 
-    rows = db.query(AuditLog).order_by(AuditLog.data_hora_utc.desc()).limit(limit).all()
+    query = db.query(AuditLog)
+    if not incluir_triggers_sql:
+        query = query.filter(AuditLog.origem_registro != "SQL_TRIGGER")
+    rows = query.order_by(AuditLog.data_hora_utc.desc()).limit(limit).all()
 
     if format.lower() == "json":
         payload = [_row_to_audit_item(r).model_dump() for r in rows]
@@ -350,57 +457,131 @@ def export_audit_logs(
             headers={"Content-Disposition": 'attachment; filename="nexo_audit_logs.json"'},
         )
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(
-        [
-            "ID Log",
-            "Data/Hora (Brasilia)",
-            "Data/Hora (UTC)",
-            "Quem Fez (Nome)",
-            "Quem Fez (Email)",
-            "Quem Fez (ID)",
-            "IP Origem",
-            "Acao",
-            "Modulo",
-            "Severidade",
-            "O Que Fez (Resumo)",
-            "Entidade Afetada",
-            "ID Entidade",
-            "Dados Anteriores (JSON)",
-            "Dados Novos (JSON)",
-            "Origem Registro",
-            "Hash Integridade SHA256",
-        ]
-    )
-    for r in rows:
-        writer.writerow(
-            [
-                r.id,
-                r.data_hora_local,
-                r.data_hora_utc,
-                r.usuario_nome,
-                r.usuario_email,
-                r.usuario_id or "",
-                r.ip_origem,
-                r.acao,
-                r.categoria_evento,
-                r.severidade,
-                r.resumo_humano,
-                r.entidade_afetada,
-                r.entidade_id or "",
-                r.dados_anteriores or "",
-                r.dados_novos or "",
-                r.origem_registro,
-                r.hash_integridade,
-            ]
-        )
-
-    return PlainTextResponse(
-        content=output.getvalue(),
+    csv_bytes = _build_csv_bytes(rows)
+    return Response(
+        content=csv_bytes,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="nexo_audit_logs.csv"'},
     )
+
+
+@router.post("/send-email")
+def send_logs_excel_by_email(
+    payload: SendLogsEmailRequest,
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+    audit: AuditContext = Depends(get_audit_context),
+) -> Dict[str, Any]:
+    """
+    Gera a planilha Excel (.csv) com todos os logs de auditoria e envia por e-mail (Gmail)
+    para o endereço solicitado pelo Administrador.
+    """
+    admin_user = _check_log_access(user, db=db)
+
+    query = db.query(AuditLog)
+    if not payload.incluir_triggers_sql:
+        query = query.filter(AuditLog.origem_registro != "SQL_TRIGGER")
+    rows = query.order_by(AuditLog.data_hora_utc.desc()).limit(2000).all()
+
+    csv_bytes = _build_csv_bytes(rows)
+    email_res = send_audit_logs_excel_email(
+        to_email=payload.to_email,
+        admin_name=admin_user.nome,
+        csv_bytes=csv_bytes,
+        total_events=len(rows),
+    )
+
+    record_audit_event(
+        db,
+        action="AUDIT_LOGS_EMAILED_EXCEL",
+        category="REPORT",
+        severity="INFO",
+        entity_affected="audit_logs",
+        actor_id=admin_user.id,
+        actor_email=admin_user.email,
+        actor_name=admin_user.nome,
+        ip_address=audit.ip_address,
+        user_agent=audit.user_agent,
+        http_method=audit.http_method,
+        http_route=audit.http_route,
+        request_id=audit.request_id,
+        summary=(
+            f"Administrador '{admin_user.nome}' enviou a planilha Excel com {len(rows)} logs "
+            f"para o e-mail {payload.to_email}."
+        ),
+        after_data={
+            "to_email": payload.to_email,
+            "events_exported": len(rows),
+            "sent_via_smtp": email_res["sent_via_smtp"],
+        },
+    )
+
+    return {
+        "ok": True,
+        "to_email": payload.to_email,
+        "events_count": len(rows),
+        "sent_via_smtp": email_res["sent_via_smtp"],
+        "smtp_error": email_res["smtp_error"],
+        "message": (
+            f"Planilha Excel enviada com sucesso para o Gmail {payload.to_email}!"
+            if email_res["sent_via_smtp"]
+            else f"Planilha preparada e registrada na Caixa de Saída para {payload.to_email} (configure sua Senha de App do Gmail no botão 'Configurar Gmail' para envio SMTP externo)."
+        ),
+    }
+
+
+@router.get("/smtp-config")
+def read_smtp_settings(
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Retorna o status da configuração SMTP do Gmail e os últimos e-mails na Caixa de Saída."""
+    _check_log_access(user, db=db)
+    cfg = get_smtp_config()
+    return {
+        "ok": True,
+        "smtp_user": cfg.get("user", ""),
+        "default_to": cfg.get("default_to", ""),
+        "is_configured": bool(cfg.get("user") and cfg.get("password")),
+        "outbox": list_outbox_emails(limit=20),
+    }
+
+
+@router.post("/smtp-config")
+def update_smtp_settings(
+    payload: SmtpConfigPayload,
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+    audit: AuditContext = Depends(get_audit_context),
+) -> Dict[str, Any]:
+    """Configura em tempo real o Gmail e a Senha de App para envio real de e-mails e planilhas."""
+    admin_user = _check_log_access(user, db=db)
+    saved = save_smtp_config(
+        user=payload.gmail_user,
+        password=payload.gmail_app_password,
+        default_to=payload.default_to,
+    )
+    record_audit_event(
+        db,
+        action="SMTP_GMAIL_CONFIG_UPDATED",
+        category="SYSTEM",
+        severity="INFO",
+        entity_affected="smtp_config",
+        actor_id=admin_user.id,
+        actor_email=admin_user.email,
+        actor_name=admin_user.nome,
+        ip_address=audit.ip_address,
+        user_agent=audit.user_agent,
+        http_method=audit.http_method,
+        http_route=audit.http_route,
+        request_id=audit.request_id,
+        summary=f"Administrador '{admin_user.nome}' configurou a conta Gmail SMTP ({payload.gmail_user}).",
+    )
+    return {
+        "ok": True,
+        "message": f"Conta Gmail ({payload.gmail_user}) configurada com sucesso para disparo de e-mails!",
+        "config": saved,
+    }
 
 
 @router.post("/frontend-event", status_code=status.HTTP_201_CREATED)
@@ -410,10 +591,7 @@ def log_frontend_event(
     db: Session = Depends(get_db),
     audit: AuditContext = Depends(get_audit_context),
 ) -> Dict[str, Any]:
-    """
-    Recebe eventos diretamente do Front-End (ex.: abertura de tela, clique em botão,
-    aplicação de filtro ou erro de cliente) e grava na trilha central `audit_logs`.
-    """
+    """Recebe eventos diretamente do Front-End e grava na trilha central `audit_logs`."""
     sev = payload.severidade.upper()
     if sev not in ("INFO", "WARNING", "ERROR", "CRITICAL"):
         sev = "INFO"

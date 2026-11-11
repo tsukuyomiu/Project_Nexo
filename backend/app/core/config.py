@@ -45,15 +45,24 @@ class Settings(BaseSettings):
 
     # CORS
     NEXO_CORS_ORIGINS: str = (
-        "http://localhost:3000,http://localhost:5173,"
-        "http://127.0.0.1:3000,http://127.0.0.1:5173"
+        "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://localhost:8081,http://localhost:4173,"
+        "http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:8080,http://127.0.0.1:8081,http://127.0.0.1:4173"
     )
 
     # Arquivos de Logs e Auditoria
     NEXO_AUDIT_LOG_FILE: str = str(LOGS_DIR / "nexo_audit.jsonl")
     NEXO_ACCESS_LOG_FILE: str = str(LOGS_DIR / "nexo_access.jsonl")
     NEXO_ERROR_LOG_FILE: str = str(LOGS_DIR / "nexo_errors.log")
-    NEXO_LOGS_PUBLIC_IN_DEV: bool = True
+    NEXO_LOGS_PUBLIC_IN_DEV: bool = False
+    NEXO_ADMIN_EMAILS: str = "admin@nexo.com,ggnonato@gmail.com,tylex.dev@gmail.com"
+    NEXO_ADMIN_MASTER_CODE: str = "NEXO-ADM-2026"
+
+    # Configurações SMTP Gmail para envio real de e-mails e planilhas
+    NEXO_SMTP_HOST: str = "smtp.gmail.com"
+    NEXO_SMTP_PORT: int = 587
+    NEXO_SMTP_USER: str = "ggnonato@gmail.com"
+    NEXO_SMTP_PASSWORD: str = ""
+    NEXO_ALERT_EMAIL_TO: str = "ggnonato@gmail.com"
 
     model_config = SettingsConfigDict(
         env_file=str(BACKEND_DIR / ".env"),
@@ -64,6 +73,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.NEXO_CORS_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def admin_emails_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.NEXO_ADMIN_EMAILS.split(",") if e.strip()}
 
 
 settings = Settings()

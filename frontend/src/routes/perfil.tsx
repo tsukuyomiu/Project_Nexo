@@ -9,6 +9,7 @@ import {
   EyeOff,
   Lock,
   Mail,
+  MapPin,
   Minus,
   Pencil,
   Phone,
@@ -18,9 +19,10 @@ import {
   User,
   Wallet,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/AppLayout";
+import { PasswordStrengthMeter } from "@/components/NexoLayout";
 import { MonthSelect } from "@/components/MonthSelect";
 import {
   Dialog,
@@ -59,13 +61,6 @@ export const Route = createFileRoute("/perfil")({
         name: "description",
         content: "Visualize e edite suas informações pessoais e preferências.",
       },
-      { property: "og:title", content: "Perfil | Nexo" },
-      {
-        property: "og:description",
-        content: "Visualize e edite suas informações pessoais e preferências.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: ProfilePage,
@@ -74,13 +69,89 @@ export const Route = createFileRoute("/perfil")({
 type PasswordErrors = Partial<Record<"current" | "next" | "confirm", string>>;
 
 function ProfilePage() {
-  const { transactions, profile, currency, setCurrency } = useTransactions();
+  const {
+    transactions,
+    profile,
+    avatarUrl,
+    setAvatarUrl,
+    twoFactorEnabled,
+    setTwoFactorEnabled,
+    currency,
+    setCurrency,
+  } = useTransactions();
   const [month, setMonth] = useState(currentMonthKey());
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [toggling2FA, setToggling2FA] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totals = calcTotals(filterByMonth(transactions, month));
   const recent = transactions.slice(0, 3);
+  const displayName = profile.name?.trim() || profile.email?.split("@")[0] || "Membro Nexo";
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem válido (PNG, JPG ou WEBP).");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawDataUrl = typeof reader.result === "string" ? reader.result : null;
+      if (!rawDataUrl) return;
+
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const size = 256;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            const minSide = Math.min(img.width, img.height);
+            const sx = (img.width - minSide) / 2;
+            const sy = (img.height - minSide) / 2;
+            ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+            setAvatarUrl(canvas.toDataURL("image/jpeg", 0.85));
+          } else {
+            setAvatarUrl(rawDataUrl);
+          }
+        } catch {
+          setAvatarUrl(rawDataUrl);
+        }
+        toast.success("Foto de perfil atualizada com sucesso!");
+      };
+      img.onerror = () => {
+        setAvatarUrl(rawDataUrl);
+        toast.success("Foto de perfil atualizada com sucesso!");
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  async function handleToggle2FA(checked: boolean) {
+    if (toggling2FA) return;
+    setToggling2FA(true);
+    try {
+      const ok = await setTwoFactorEnabled(checked);
+      if (ok) {
+        toast.success(
+          checked
+            ? "Autenticação em duas etapas (2FA) ATIVADA! No próximo login enviaremos um código de 6 dígitos para o seu e-mail."
+            : "Autenticação em duas etapas (2FA) desativada.",
+        );
+      } else {
+        toast.error("Faça login com uma conta cadastrada para ativar a autenticação em 2 etapas.");
+      }
+    } finally {
+      setToggling2FA(false);
+    }
+  }
 
   return (
     <AppLayout>
@@ -88,17 +159,43 @@ function ProfilePage() {
         <div className="flex flex-col gap-4">
           <section className="flex items-center gap-6 rounded-2xl bg-primary p-8 text-primary-foreground shadow-card">
             <div className="relative">
-              <span className="grid h-24 w-24 place-items-center rounded-full bg-muted text-muted-foreground">
-                <User className="h-12 w-12" />
-              </span>
-              <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-primary bg-secondary text-secondary-foreground">
-                <Camera className="h-3.5 w-3.5" />
-              </span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+                aria-label="Selecionar foto de perfil"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Clique para alterar sua foto de perfil"
+                aria-label="Alterar foto de perfil"
+                className="group relative block rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
+              >
+                <span className="grid h-24 w-24 overflow-hidden place-items-center rounded-full bg-muted text-muted-foreground transition group-hover:brightness-95">
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={`Foto de perfil de ${displayName}`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <User className="h-12 w-12" />
+                  )}
+                </span>
+                <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-primary bg-secondary text-secondary-foreground shadow-btn transition group-hover:scale-110">
+                  <Camera className="h-3.5 w-3.5" />
+                </span>
+              </button>
             </div>
             <div>
-              <h1 className="break-words text-2xl font-bold">Olá, {profile.name || "Usuário"}!</h1>
+              <h1 className="break-words text-2xl font-bold">Olá, {displayName}!</h1>
               <p className="mt-1 max-w-xs text-xs">
-                Aqui você pode visualizar e editar suas informações pessoais e preferências.
+                {profile.email
+                  ? `Conectado como ${profile.email}`
+                  : "Aqui você pode visualizar e editar suas informações pessoais e preferências."}
               </p>
             </div>
           </section>
@@ -128,6 +225,7 @@ function ProfilePage() {
                   label: "Data de nascimento",
                   value: profile.birthDate ? formatDate(profile.birthDate) : "",
                 },
+                { icon: <MapPin className="h-4 w-4" />, label: "Endereço", value: profile.address },
               ].map((row) => (
                 <div key={row.label} className="flex items-center gap-3">
                   <span className="text-muted-foreground">{row.icon}</span>
@@ -160,18 +258,24 @@ function ProfilePage() {
               </button>
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-              <span className="flex items-center gap-2 text-sm text-foreground">
-                <ShieldCheck className="h-4 w-4 text-muted-foreground" /> Autenticação em duas
-                etapas
-              </span>
+              <div>
+                <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-secondary" /> Autenticação em duas etapas
+                  (2FA)
+                </span>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {twoFactorEnabled
+                    ? "Ativa: exigirá código de 6 dígitos enviado por e-mail ao fazer login."
+                    : "Desativada: ative para exigir código de segurança por e-mail no login."}
+                </p>
+              </div>
               <Switch
-                disabled
-                aria-label="Autenticação em duas etapas (disponível com o Back-End)"
+                checked={twoFactorEnabled}
+                disabled={toggling2FA}
+                onCheckedChange={handleToggle2FA}
+                aria-label="Autenticação em duas etapas"
               />
             </div>
-            <p className="mt-1 text-right text-[10px] text-muted-foreground">
-              Disponível com a integração do Back-End.
-            </p>
           </section>
         </div>
 
@@ -235,8 +339,8 @@ function ProfilePage() {
                     const result = currencySchema.safeParse(value);
                     if (!result.success) return;
                     if (setCurrency(result.data))
-                      toast.success("Moeda atualizada neste navegador.");
-                    else toast.error("Não foi possível salvar a moeda neste navegador.");
+                      toast.success("Moeda de preferência salva com sucesso!");
+                    else toast.error("Não foi possível salvar a moeda.");
                   }}
                 >
                   <SelectTrigger aria-label="Moeda" className="w-full sm:w-56">
@@ -253,8 +357,7 @@ function ProfilePage() {
               </li>
             </ul>
             <p className="mt-3 text-xs text-muted-foreground">
-              Altera somente o símbolo exibido, sem converter valores. Preferência provisória neste
-              navegador.
+              Altera o símbolo exibido e salva a preferência vinculada à sua conta no banco SQL.
             </p>
           </section>
 
@@ -304,8 +407,6 @@ function ProfilePage() {
   );
 }
 
-/* Modal de alteração de senha: validações locais completas, mas SEM sucesso
-   falso — a operação efetiva depende do serviço de autenticação (Back-End). */
 function PasswordDialog({
   open,
   onOpenChange,
@@ -317,16 +418,19 @@ function PasswordDialog({
   const [show, setShow] = useState({ current: false, next: false, confirm: false });
   const [errors, setErrors] = useState<PasswordErrors>({});
   const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
 
   function reset() {
     setForm({ current: "", next: "", confirm: "" });
     setShow({ current: false, next: false, confirm: false });
     setErrors({});
     setNotice("");
+    setSaving(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (saving) return;
     const next: PasswordErrors = {};
     if (!form.current) next.current = "Informe sua senha atual.";
     if (form.next.length < 6) next.next = "A nova senha deve ter ao menos 6 caracteres.";
@@ -337,11 +441,19 @@ function PasswordDialog({
     setNotice("");
     if (Object.keys(next).length > 0) return;
 
-    // Ponto único de integração: hoje retorna indisponível (sem Back-End).
-    const result = await changePassword(form.current, form.next);
-    if (!result.ok) {
-      setNotice(result.message ?? "Não foi possível alterar a senha.");
-      setForm({ current: "", next: "", confirm: "" }); // senhas nunca ficam retidas
+    setSaving(true);
+    try {
+      const result = await changePassword(form.current, form.next);
+      if (!result.ok) {
+        setNotice(result.message ?? "Não foi possível alterar a senha.");
+        setForm({ current: "", next: "", confirm: "" });
+      } else {
+        toast.success(result.message || "Senha alterada com sucesso!");
+        reset();
+        onOpenChange(false);
+      }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -363,7 +475,7 @@ function PasswordDialog({
         <DialogHeader>
           <DialogTitle>Alterar senha</DialogTitle>
           <DialogDescription>
-            Preencha os campos abaixo para alterar sua senha de acesso.
+            Preencha os campos abaixo para alterar sua senha de acesso no banco de dados.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
@@ -401,15 +513,16 @@ function PasswordDialog({
               {errors[field.key] && (
                 <p className="mt-1 text-xs text-destructive">{errors[field.key]}</p>
               )}
+              {field.key === "next" && <PasswordStrengthMeter password={form.next} />}
             </div>
           ))}
 
           {notice && (
             <p
               role="alert"
-              className="rounded-lg border border-primary/40 bg-primary-soft p-3 text-xs text-foreground"
+              className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive"
             >
-              {notice} Nenhuma alteração foi feita.
+              {notice}
             </p>
           )}
 
@@ -423,9 +536,10 @@ function PasswordDialog({
             </button>
             <button
               type="submit"
-              className="h-10 rounded-lg bg-secondary text-sm font-bold text-secondary-foreground shadow-btn hover:brightness-110"
+              disabled={saving}
+              className="h-10 rounded-lg bg-secondary text-sm font-bold text-secondary-foreground shadow-btn hover:brightness-110 disabled:opacity-50"
             >
-              Salvar nova senha
+              {saving ? "Salvando..." : "Salvar nova senha"}
             </button>
           </div>
         </form>

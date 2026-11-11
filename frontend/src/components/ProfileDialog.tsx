@@ -60,7 +60,7 @@ export function ProfileDialog({
     }
   }, [open, profile]);
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
     const result = profileSchema.safeParse(draft);
@@ -77,11 +77,11 @@ export function ProfileDialog({
     }
     setSaving(true);
     try {
-      updateProfile(result.data);
-      toast.success("Perfil atualizado nesta sessão.");
+      await updateProfile(result.data);
+      toast.success("Informações pessoais salvas no banco de dados!");
       onOpenChange(false);
-    } catch {
-      toast.error("Não foi possível atualizar o perfil.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível atualizar o perfil.");
     } finally {
       setSaving(false);
     }
